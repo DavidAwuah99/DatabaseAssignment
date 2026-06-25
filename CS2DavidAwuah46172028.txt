@@ -1,0 +1,211 @@
+
+7.24
+MariaDB [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| HotelReservations  |
+| MovieCo            |
+| company            |
+| contacts           |
+| information_schema |
+| mysql              |
+| pcars              |
+| performance_schema |
+| sys                |
+| test               |
++--------------------+
+10 rows in set (0.009 sec)
+
+MariaDB [(none)]> create database projects;
+Query OK, 1 row affected (0.003 sec)
+
+MariaDB [(none)]> use projects;
+Database changed
+MariaDB [projects]> create table departments(
+    -> deptNo char(5),
+    -> deptName varchar(20) not null,
+    -> mgrEmpNo char(5),
+    -> primary key(deptNo));
+Query OK, 0 rows affected (0.043 sec)
+
+
+MariaDB [projects]> create table employee(
+    ->      empNo char(5),
+    ->      fname varchar(30) not null,
+    ->      lname varchar(30) not null,
+    ->      address varchar(30),
+    ->      dob date,
+    ->      sex char(1) check(sex in ('M','F')),
+    ->      position varchar(50) check(position in ('Manager','Team Leader', 'Analyst','Software Developer')),
+    ->      deptNo char(5),
+    ->      primary key(empNo),
+    ->      foreign key(deptNo) references departments(deptNo));
+Query OK, 0 rows affected (0.035 sec)
+
+MariaDB [projects]> alter table departments
+    -> add foreign key(mgrEmpNo) references employee(empNo);
+Query OK, 0 rows affected (0.055 sec)              
+Records: 0  Duplicates: 0  Warnings: 0
+
+MariaDB [projects]> create table project(
+    -> projNo char(5),
+    -> projName varchar(30) not null,
+    -> deptNo char(5),
+    -> primary key(projNo),
+    -> foreign key(deptNo) references departments(deptNo));
+Query OK, 0 rows affected (0.028 sec)
+
+MariaDB [projects]> create table WorksOn(
+    -> empNo char(5),
+    -> projNo char(5) not null,
+    -> hoursWorked int check(hoursWorked between 0 and 40),
+    -> primary key(empNo,projNo),
+    -> foreign key(empNo) references employee(empNo),
+    -> foreign key(projNo) references project(projNo));
+Query OK, 0 rows affected (0.032 sec)
+
+
+MariaDB [projects]> insert into employee values
+    -> ('E1', 'Alice', 'Nkrumah', '12 High St', '1980-04-12', 'F', 'Manager', NULL),
+    -> ('E2', 'Kojo', 'Mensah', '5 Ring Rd', '1985-09-23', 'M', 'Manager', NULL),
+    -> ('E3', 'Ama', 'Boateng', '3 Spintex Rd', '1990-01-15', 'F', 'Analyst', NULL),
+    -> ('E4', 'Yaw', 'Owusu', '8 Liberation Ave', '1992-06-30', 'M', 'Software Developer', NULL);
+Query OK, 4 rows affected (0.002 sec)
+Records: 4  Duplicates: 0  Warnings: 0
+
+MariaDB [projects]> insert into department values
+    -> ('D1', 'Research', 'E1'),
+    -> ('D2', 'Development', 'E2');
+Query OK, 2 rows affected (0.003 sec)
+Records: 2  Duplicates: 0  Warnings: 0
+
+MariaDB [projects]> update employee set deptNo = 'D1' where empNo in('E1','E3');
+Query OK, 2 rows affected (0.003 sec)
+Rows matched: 2  Changed: 2  Warnings: 0
+
+MariaDB [projects]> update employee set deptNo = 'D2' where empNo in ('E2','E4');
+Query OK, 2 rows affected (0.002 sec)
+Rows matched: 2  Changed: 2  Warnings: 0
+
+MariaDB [projects]> insert into project values
+    -> ('P1', 'SSPLus', 'D1'),
+    -> ('P2', 'FOXN','D2');
+Query OK, 2 rows affected (0.002 sec)
+Records: 2  Duplicates: 0  Warnings: 0
+
+MariaDB [projects]> insert into WorksOn values
+    -> ('E1', 'P1', 10),
+    -> ('E3', 'P1', 35),
+    -> ('E2', 'P2', 40),
+    -> ('E4', 'P2', 30),
+    -> ('E3', 'P2', 5);
+Query OK, 5 rows affected (0.001 sec)
+Records: 5  Duplicates: 0  Warnings: 0
+
+
+
+
+7.25
+MariaDB [projects]> create view femalemanagedprojects as 
+    -> select p.projNo, p.projName
+    -> from project p
+    -> join department d on p.deptNo = d.deptNo
+    -> join employee e on d.mgrEmpNo = e.empNo
+    -> where e.sex = 'F'
+    -> order by p.projNo;
+Query OK, 0 rows affected (0.021 sec)
+
+MariaDB [projects]> select * from femalemanagedprojects;
++--------+----------+
+| projNo | projName |
++--------+----------+
+| P1     | SSPLus   |
++--------+----------+
+1 row in set (0.005 sec)
+
+
+
+7.26
+MariaDB [projects]> create view EmpProjectHours as 
+    -> select e.empNo, e.fname, e.lname, p.projName, w.hoursWorked
+    -> from employee e
+    -> join worksOn w on e.empNo = w.empNo
+    -> join project p on w.projNo = p.projNo;
+Query OK, 0 rows affected (0.024 sec)
+
+MariaDB [projects]> select * from EmpProjectHours;
++-------+-------+---------+----------+-------------+
+| empNo | fname | lname   | projName | hoursWorked |
++-------+-------+---------+----------+-------------+
+| E1    | Alice | Nkrumah | SSPLus   |          10 |
+| E3    | Ama   | Boateng | SSPLus   |          35 |
+| E2    | Kojo  | Mensah  | FOXN     |          40 |
+| E3    | Ama   | Boateng | FOXN     |           5 |
+| E4    | Yaw   | Owusu   | FOXN     |          30 |
++-------+-------+---------+----------+-------------+
+5 rows in set (0.001 sec)
+
+
+
+7.27
+MariaDB [projects]> create view EmpProject(empNo, projNo, totalHours)
+    ->      as select w.empNo, w.projNo, sum(hoursWorked)
+    ->      from employee e, project p, WorksOn w
+    ->      where e.empNo = w.empNo and p.projNo = w.projNo
+    ->      group by w.empNo, w.projNo;
+Query OK, 0 rows affected (0.019 sec)
+
+a) MariaDB [projects]> select * from EmpProject;
++-------+--------+------------+
+| empNo | projNo | totalHours |
++-------+--------+------------+
+| E1    | P1     |         10 |
+| E2    | P2     |         40 |
+| E3    | P1     |         35 |
+| E3    | P2     |          5 |
+| E4    | P2     |         30 |
++-------+--------+------------+
+5 rows in set (0.005 sec)
+
+b) MariaDB [projects]> select projNo
+    -> from EmpProject
+    -> where projNo = 'P1';
++--------+
+| projNo |
++--------+
+| P1     |
+| P1     |
++--------+
+2 rows in set (0.003 sec)
+
+c) MariaDB [projects]> select count(projNo)
+    -> from EmpProject
+    -> where empNo = 'E1';
++---------------+
+| count(projNo) |
++---------------+
+|             1 |
++---------------+
+1 row in set (0.001 sec)
+
+d) MariaDB [projects]> select empNo, totalHours
+    -> from EmpProject
+    -> group by empNo;
++-------+------------+
+| empNo | totalHours |
++-------+------------+
+| E1    |         10 |
+| E2    |         40 |
+| E3    |         35 |
+| E4    |         30 |
++-------+------------+
+4 rows in set (0.001 sec)
+
+
+7.28
+INSERT can be maintained without accessing Part(base table) because the partCost > 1000 filter only needs the new rows data and the second check DISTINCT only needs the view's own stored records/rows - never the base table Part itself.
+
+DELETE requires accessing the base table Part. A row (partNo, contract, partCost) is deleted. PartNo might have had other rows that are priced above 1000 pounds in the view. The only way to check remaining parts that matches the partNo is by querying the base table Part.
+
+UPDATE behaves like an INSERT or DELETE based on the bound of the ExpensivePart view. If you're adding to the view it's like an INSERT but if you're removing from the view it acts like a DELETE. Here it really depends on which operation is being done and that determines if the base table is referenced or not
